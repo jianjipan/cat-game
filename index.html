@@ -1,0 +1,535 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="mobile-web-app-capable" content="yes">
+<title>🐱 喵喵乐园</title>
+<style>
+* {
+  margin: 0;
+  padding: 0;
+  box-sizing: border-box;
+  -webkit-touch-callout: none;
+  -webkit-user-select: none;
+  user-select: none;
+  -webkit-tap-highlight-color: transparent;
+}
+html, body {
+  width: 100%;
+  height: 100%;
+  overflow: hidden;
+  background: #0a0a14;
+  touch-action: none;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+canvas {
+  display: block;
+  width: 100%;
+  height: 100%;
+  position: fixed;
+  top: 0;
+  left: 0;
+}
+#startScreen {
+  position: fixed;
+  top: 0; left: 0;
+  width: 100%; height: 100%;
+  background: radial-gradient(ellipse at center, #2a1a3e 0%, #0d0d1a 100%);
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  z-index: 100;
+  transition: opacity 0.8s ease;
+}
+#startScreen.hidden {
+  opacity: 0;
+  pointer-events: none;
+}
+.start-title {
+  font-size: min(12vw, 80px);
+  color: #fff;
+  text-shadow: 0 0 30px rgba(255,180,230,0.6), 0 0 60px rgba(180,130,255,0.3);
+  margin-bottom: 10px;
+  font-family: -apple-system, sans-serif;
+  letter-spacing: 8px;
+}
+.start-subtitle {
+  font-size: min(5vw, 28px);
+  color: rgba(255,255,255,0.5);
+  margin-bottom: 60px;
+  font-family: -apple-system, sans-serif;
+}
+.start-btn {
+  width: min(70vw, 320px);
+  padding: 20px;
+  border: 2px solid rgba(255,255,255,0.3);
+  border-radius: 50px;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  font-size: min(6vw, 28px);
+  font-family: -apple-system, sans-serif;
+  letter-spacing: 4px;
+  cursor: pointer;
+  backdrop-filter: blur(10px);
+  animation: btnPulse 2s ease-in-out infinite;
+}
+@keyframes btnPulse {
+  0%, 100% { box-shadow: 0 0 20px rgba(255,180,230,0.2); }
+  50% { box-shadow: 0 0 40px rgba(255,180,230,0.5); }
+}
+#lockHint {
+  position: fixed;
+  bottom: max(env(safe-area-inset-bottom), 12px);
+  left: 50%;
+  transform: translateX(-50%);
+  color: rgba(255,255,255,0.12);
+  font-size: 11px;
+  font-family: -apple-system, sans-serif;
+  z-index: 50;
+  pointer-events: none;
+  white-space: nowrap;
+}
+</style>
+</head>
+<body>
+<div id="startScreen">
+  <div class="start-title">喵喵乐园</div>
+  <div class="start-subtitle">给猫主子的小游戏</div>
+  <button class="start-btn" id="startBtn">开始播放 🐾</button>
+</div>
+<canvas id="gameCanvas"></canvas>
+<div id="lockHint">💡 建议开启 iPad「引导式访问」防止猫咪退出</div>
+<script>
+// 防误触
+document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
+document.addEventListener('gesturestart', e => e.preventDefault());
+document.addEventListener('gesturechange', e => e.preventDefault());
+document.addEventListener('gestureend', e => e.preventDefault());
+document.addEventListener('contextmenu', e => e.preventDefault());
+document.addEventListener('dblclick', e => e.preventDefault());
+
+function tryFullscreen() {
+  const el = document.documentElement;
+  if (el.requestFullscreen) el.requestFullscreen().catch(() => {});
+  else if (el.webkitRequestFullscreen) el.webkitRequestFullscreen();
+}
+
+const canvas = document.getElementById('gameCanvas');
+const ctx = canvas.getContext('2d');
+let W, H, dpr;
+let creatures = [];
+let bgStars = [];
+let running = false;
+
+const phaseTypes = ['tadpole', 'yarn', 'soot', 'laser'];
+
+// ===== 核心修复：用定时器驱动生成，而不是依赖死亡检测 =====
+let spawnTimer = 0;
+const SPAWN_INTERVAL_MIN = 90;   // 最少间隔帧数 (~1.5秒)
+const SPAWN_INTERVAL_MAX = 200;  // 最大间隔帧数 (~3.3秒)
+const MAX_CREATURES = 3;         // 场上最多同时存在的生物数
+const MAX_LIFETIME = 600;        // 最大生命帧数 (~10秒)，超时强制消亡
+
+function getNextSpawnDelay() {
+  return SPAWN_INTERVAL_MIN + Math.floor(Math.random() * (SPAWN_INTERVAL_MAX - SPAWN_INTERVAL_MIN));
+}
+
+function resize() {
+  dpr = window.devicePixelRatio || 1;
+  W = window.innerWidth;
+  H = window.innerHeight;
+  canvas.width = W * dpr;
+  canvas.height = H * dpr;
+  canvas.style.width = W + 'px';
+  canvas.style.height = H + 'px';
+  ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+  initStars();
+}
+window.addEventListener('resize', resize);
+resize();
+
+function makeTraversal() {
+  const margin = 60;
+  const edge = Math.floor(Math.random() * 4);
+  const oppEdge = (edge + 1 + Math.floor(Math.random() * 3)) % 4;
+  let sx, sy, ex, ey;
+  switch (edge) {
+    case 0: sx = W * (0.1 + Math.random() * 0.8); sy = -margin; break;
+    case 1: sx = W * (0.1 + Math.random() * 0.8); sy = H + margin; break;
+    case 2: sx = -margin; sy = H * (0.1 + Math.random() * 0.8); break;
+    case 3: sx = W + margin; sy = H * (0.1 + Math.random() * 0.8); break;
+  }
+  switch (oppEdge) {
+    case 0: ex = W * (0.1 + Math.random() * 0.8); ey = -margin; break;
+    case 1: ex = W * (0.1 + Math.random() * 0.8); ey = H + margin; break;
+    case 2: ex = -margin; ey = H * (0.1 + Math.random() * 0.8); break;
+    case 3: ex = W + margin; ey = H * (0.1 + Math.random() * 0.8); break;
+  }
+  return { sx, sy, ex, ey };
+}
+
+function initStars() {
+  bgStars = [];
+  for (let i = 0; i < 50; i++) {
+    bgStars.push({
+      x: Math.random() * W, y: Math.random() * H,
+      r: Math.random() * 1.5 + 0.5,
+      phase: Math.random() * Math.PI * 2,
+      speed: Math.random() * 0.02 + 0.008
+    });
+  }
+}
+
+function drawBg() {
+  const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
+  grad.addColorStop(0, '#1e1533');
+  grad.addColorStop(1, '#0a0a14');
+  ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  bgStars.forEach(s => {
+    s.phase += s.speed;
+    const alpha = 0.15 + 0.25 * Math.sin(s.phase);
+    ctx.beginPath();
+    ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
+    ctx.fillStyle = `rgba(255,255,25,${alpha})`;
+    ctx.fill();
+  });
+}
+
+// ===== 生物基类 =====
+class BaseCreature {
+  initTraversal(trav) {
+    this.x = trav.sx;
+    this.y = trav.sy;
+    this.exitX = trav.ex;
+    this.exitY = trav.ey;
+    const dx = W/2 - this.x;
+    const dy = H/2 - this.y;
+    const d = Math.hypot(dx, dy) || 1;
+    const spd = this.baseSpeed;
+    this.vx = dx/d * spd;
+    this.vy = dy/d * spd;
+    this.roamFrames = Math.round((2 + Math.random() * 2) * 60);
+    this.age = 0;
+    this.exiting = false;
+    this.alive = true;
+  }
+  tickTraversal() {
+    this.age++;
+
+    // 修复1：超过最大生命时间，强制进入退出状态
+    if (this.age > MAX_LIFETIME) {
+      this.alive = false;
+      return;
+    }
+
+    if (this.age > this.roamFrames && !this.exiting) {
+      this.exiting = true;
+    }
+    if (this.exiting) {
+      const dx = this.exitX - this.x;
+      const dy = this.exitY - this.y;
+      const d = Math.hypot(dx, dy) || 1;
+      const spd = this.baseSpeed * 2.0;
+
+      // 修复2：更强的转向力，随时间递增，确保一定能飞出去
+      const exitAge = this.age - this.roamFrames;
+      const steerStrength = Math.min(0.15 + exitAge * 0.002, 0.5);
+      this.vx += (dx/d * spd - this.vx) * steerStrength;
+      this.vy += (dy/d * spd - this.vy) * steerStrength;
+    }
+
+    const margin = 80;
+    if (this.x < -margin || this.x > W+margin || this.y < -margin || this.y > H+margin) {
+      this.alive = false;
+    }
+  }
+}
+
+// 小蝌蚪
+class Tadpole extends BaseCreature {
+  constructor(trav) {
+    super();
+    this.type = 'tadpole';
+    this.r = 14 + Math.random() * 8;
+    this.baseSpeed = 7.2 + Math.random() * 3.2;
+    this.tailPhase = Math.random() * Math.PI * 2;
+    this.hue = 200 + Math.random() * 50;
+    this.trail = [];
+    this.initTraversal(trav);
+  }
+  update() {
+    this.tailPhase += 0.4;
+    const perp = Math.atan2(this.vy, this.vx) + Math.PI/2;
+    this.vx += Math.cos(perp) * Math.sin(this.age * 0.08) * 0.12;
+    this.vy += Math.sin(perp) * Math.sin(this.age * 0.08) * 0.12;
+    if (!this.exiting) {
+      const pad = this.r + 20;
+      if (this.x < pad) this.vx += 0.4;
+      if (this.x > W-pad) this.vx -= 0.4;
+      if (this.y < pad) this.vy += 0.4;
+      if (this.y > H-pad) this.vy -= 0.4;
+    }
+    const spd = Math.hypot(this.vx, this.vy);
+    const maxSpd = this.exiting ? this.baseSpeed * 2.0 : this.baseSpeed;
+    if (spd > maxSpd) { this.vx *= maxSpd/spd; this.vy *= maxSpd/spd; }
+    this.x += this.vx;
+    this.y += this.vy;
+    this.trail.unshift({ x: this.x, y: this.y });
+    if (this.trail.length > 24) this.trail.pop();
+    this.tickTraversal();
+  }
+  draw() {
+    const r = this.r;
+    const angle = Math.atan2(this.vy, this.vx);
+    const hue = this.hue;
+    if (this.trail.length > 4) {
+      ctx.save();
+      for (let pass = 0; pass < 2; pass++) {
+        const lw = pass === 0 ? r * 0.95 : r * 0.45;
+        const baseAlpha = pass === 0 ? 0.28 : 0.55;
+        ctx.beginPath();
+        ctx.moveTo(this.trail[0].x, this.trail[0].y);
+        for (let i = 1; i < this.trail.length - 1; i++) {
+          const t0 = this.trail[i], t1 = this.trail[i+1];
+          const amp = r * 0.55 + i * 0.28;
+          const w = Math.sin(this.tailPhase + i * 0.38) * amp;
+          const perpA = angle + Math.PI/2;
+          const cpx = t0.x + Math.cos(perpA)*w;
+          const cpy = t0.y + Math.sin(perpA)*w;
+          const mx = (cpx + t1.x) / 2;
+          const my = (cpy + t1.y) / 2;
+          ctx.quadraticCurveTo(cpx, cpy, mx, my);
+        }
+        ctx.lineWidth = lw;
+        ctx.lineCap = 'round';
+        ctx.lineJoin = 'round';
+        const grad = ctx.createLinearGradient(this.trail[0].x, this.trail[0].y, this.trail[this.trail.length-1].x, this.trail[this.trail.length-1].y);
+        grad.addColorStop(0,   `hsla(${hue},55%,42%,${baseAlpha})`);
+        grad.addColorStop(0.4, `hsla(${hue},45%,52%,${baseAlpha*0.5})`);
+        grad.addColorStop(1,   `hsla(${hue},40%,60%,0)`);
+        ctx.strokeStyle = grad;
+        ctx.stroke();
+      }
+      ctx.restore();
+    }
+    ctx.save();
+    ctx.translate(this.x, this.y);
+    ctx.rotate(angle);
+    ctx.beginPath();
+    ctx.ellipse(0, 0, r*1.1, r*0.88, 0, 0, Math.PI*2);
+    ctx.fillStyle = `hsl(${hue},55%,42%)`;
+    ctx.fill();
+    ctx.restore();
+  }
+}
+
+// 毛线球
+class YarnBall extends BaseCreature {
+  constructor(trav) {
+    super();
+    this.type = 'yarn';
+    this.r = 20 + Math.random() * 10;
+    this.baseSpeed = 6.0 + Math.random() * 3.2;
+    this.hue = [340, 30, 50, 180, 270, 15][Math.floor(Math.random()*6)];
+    this.rotation = 0;
+    this.rotSpd = (Math.random()>0.5?1:-1) * (0.12 + Math.random()*0.16);
+    this.threadTrail = [];
+    this.initTraversal(trav);
+  }
+  update() {
+    this.rotation += this.rotSpd;
+    if (!this.exiting) {
+      const pad = this.r + 20;
+      if (this.x < pad) this.vx += 0.4;
+      if (this.x > W-pad) this.vx -= 0.4;
+      if (this.y < pad) this.vy += 0.4;
+      if (this.y > H-pad) this.vy -= 0.4;
+    }
+    const spd = Math.hypot(this.vx, this.vy);
+    const maxSpd = this.exiting ? this.baseSpeed*2.0 : this.baseSpeed;
+    if (spd > maxSpd) { this.vx *= maxSpd/spd; this.vy *= maxSpd/spd; }
+    this.x += this.vx; this.y += this.vy;
+    this.threadTrail.unshift({ x: this.x + this.r*0.7, y: this.y - this.r*0.2 });
+    if (this.threadTrail.length > 30) this.threadTrail.pop();
+    this.tickTraversal();
+  }
+  draw() {
+    const r = this.r;
+    const color = `hsl(${this.hue},65%,52%)`;
+    const colorL = `hsl(${this.hue},65%,68%)`;
+    if (this.threadTrail.length > 2) {
+      ctx.beginPath();
+      ctx.moveTo(this.threadTrail[0].x, this.threadTrail[0].y);
+      for (let i = 1; i < this.threadTrail.length; i++) {
+        const t = this.threadTrail[i];
+        const w = Math.sin(i*0.3 + this.rotation*2) * 3;
+        ctx.lineTo(t.x + w, t.y + w);
+      }
+      ctx.strokeStyle = color; ctx.lineWidth = 2.5;
+      ctx.globalAlpha = 0.4; ctx.lineCap = 'round'; ctx.stroke();
+      ctx.globalAlpha = 1;
+    }
+    ctx.save();
+    ctx.translate(this.x, this.y); ctx.rotate(this.rotation);
+    ctx.beginPath(); ctx.arc(0, 0, r, 0, Math.PI*2);
+    ctx.fillStyle = color; ctx.fill();
+    ctx.strokeStyle = colorL; ctx.lineWidth = 1.8; ctx.globalAlpha = 0.45;
+    for (let i = 0; i < 5; i++) {
+      ctx.beginPath(); ctx.ellipse(0, 0, r*0.88, r*0.35, (i/5)*Math.PI, 0, Math.PI*2); ctx.stroke();
+    }
+    ctx.globalAlpha = 1;
+    ctx.restore();
+  }
+}
+
+// 黑煤球
+class SootSprite extends BaseCreature {
+  constructor(trav) {
+    super();
+    this.type = 'soot';
+    this.r = 15 + Math.random() * 10;
+    this.baseSpeed = 8.0 + Math.random() * 4.0;
+    this.legPhase = Math.random()*Math.PI*2;
+    this.fuzzPhase = Math.random()*Math.PI*2;
+    this.blinkTimer = Math.random()*180 + 80;
+    this.initTraversal(trav);
+  }
+  update() {
+    this.legPhase += 0.4;
+    this.fuzzPhase += 0.2;
+    this.blinkTimer--;
+    if (!this.exiting) {
+      const pad = this.r + 20;
+      if (this.x < pad) this.vx += 0.5;
+      if (this.x > W-pad) this.vx -= 0.5;
+      if (this.y < pad) this.vy += 0.5;
+      if (this.y > H-pad) this.vy -= 0.5;
+    }
+    const spd = Math.hypot(this.vx, this.vy);
+    const maxSpd = this.exiting ? this.baseSpeed*2.0 : this.baseSpeed;
+    if (spd > maxSpd) { this.vx *= maxSpd/spd; this.vy *= maxSpd/spd; }
+    this.x += this.vx; this.y += this.vy;
+    this.tickTraversal();
+  }
+  draw() {
+    const r = this.r;
+    for (let i = 0; i < 12; i++) {
+      const a = (i/12)*Math.PI*2;
+      const fr = r*(0.82 + 0.2*Math.sin(this.fuzzPhase + i*1.3));
+      ctx.beginPath();
+      ctx.arc(this.x + Math.cos(a)*fr*0.65, this.y + Math.sin(a)*fr*0.65, r*0.4, 0, Math.PI*2);
+      ctx.fillStyle = '#1a1a1a'; ctx.fill();
+    }
+    ctx.beginPath(); ctx.arc(this.x, this.y, r*0.72, 0, Math.PI*2);
+    ctx.fillStyle = '#111'; ctx.fill();
+    for (let i = 0; i < 4; i++) {
+      const la = Math.PI*0.3 + (i/3)*Math.PI*0.4;
+      const w = Math.sin(this.legPhase + i*1.5)*r*0.12;
+      ctx.beginPath();
+      ctx.moveTo(this.x + Math.cos(la)*r*0.4, this.y + Math.sin(la)*r*0.4);
+      ctx.lineTo(this.x + Math.cos(la)*r*0.72 + w, this.y + Math.sin(la)*r*0.72);
+      ctx.strokeStyle = '#111'; ctx.lineWidth = 2.2; ctx.lineCap = 'round'; ctx.stroke();
+    }
+  }
+}
+
+// 激光点
+class LaserDot extends BaseCreature {
+  constructor(trav) {
+    super();
+    this.type = 'laser';
+    this.r = 10;
+    this.baseSpeed = 15 + Math.random() * 4.0;
+    this.pulse = 0;
+    this.initTraversal(trav);
+  }
+  update() {
+    this.pulse += 0.6;
+    if (!this.exiting) {
+      const pad = this.r + 20;
+      if (this.x < pad) this.vx += 0.5;
+      if (this.x > W-pad) this.vx -= 0.5;
+      if (this.y < pad) this.vy += 0.5;
+      if (this.y > H-pad) this.vy -= 0.5;
+    }
+    const spd = Math.hypot(this.vx, this.vy);
+    const maxSpd = this.exiting ? this.baseSpeed * 2.0 : this.baseSpeed;
+    if (spd > maxSpd) { this.vx *= maxSpd/spd; this.vy *= maxSpd/spd; }
+    this.x += this.vx;
+    this.y += this.vy;
+    this.tickTraversal();
+  }
+  draw() {
+    const r = this.r * (1 + 0.3*Math.sin(this.pulse));
+    const glow = ctx.createRadialGradient(this.x, this.y, 0, this.x, this.y, r*5);
+    glow.addColorStop(0, 'rgba(255,50,50,0.45)');
+    glow.addColorStop(1, 'rgba(255,50,50,0)');
+    ctx.beginPath(); ctx.arc(this.x, this.y, r*5, 0, Math.PI*2);
+    ctx.fillStyle = glow; ctx.fill();
+    ctx.beginPath(); ctx.arc(this.x, this.y, r, 0, Math.PI*2);
+    ctx.fillStyle = '#ff3333'; ctx.fill();
+  }
+}
+
+const creatureClasses = { tadpole: Tadpole, yarn: YarnBall, soot: SootSprite, laser: LaserDot };
+
+// 生成一个随机类型的生物（确保不连续出现相同类型）
+let lastSpawnedType = '';
+function spawnOne() {
+  const trav = makeTraversal();
+  let availableTypes = phaseTypes.filter(t => t !== lastSpawnedType);
+  if (availableTypes.length === 0) availableTypes = phaseTypes;
+  const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
+  lastSpawnedType = randomType;
+  const TypeClass = creatureClasses[randomType];
+  creatures.push(new TypeClass(trav));
+}
+
+// ===== 主循环（完全重写生成逻辑）=====
+function gameLoop() {
+  if (!running) return;
+  drawBg();
+
+  // 清除死亡生物
+  creatures = creatures.filter(c => c.alive);
+
+  // 修复3：基于定时器的生成逻辑，不再依赖死亡检测
+  spawnTimer--;
+  if (spawnTimer <= 0 && creatures.length < MAX_CREATURES) {
+    spawnOne();
+    spawnTimer = getNextSpawnDelay();
+  }
+
+  // 修复4：兜底 - 场上完全没有生物时立刻生成
+  if (creatures.length === 0) {
+    spawnOne();
+    spawnTimer = getNextSpawnDelay();
+  }
+
+  creatures.forEach(c => { c.update(); c.draw(); });
+  requestAnimationFrame(gameLoop);
+}
+
+// 开始游戏
+function startGame() {
+  tryFullscreen();
+  document.getElementById('startScreen').classList.add('hidden');
+  creatures = [];
+  spawnTimer = 0; // 立刻生成第一个
+  running = true;
+  gameLoop();
+}
+
+const btn = document.getElementById('startBtn');
+btn.addEventListener('click', startGame);
+btn.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+</script>
+</body>
+</html>
