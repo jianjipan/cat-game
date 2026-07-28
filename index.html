@@ -95,6 +95,20 @@ canvas {
   pointer-events: none;
   white-space: nowrap;
 }
+#soundToggle {
+  position: fixed;
+  top: max(env(safe-area-inset-top), 14px);
+  right: 14px;
+  z-index: 120;
+  border: 1px solid rgba(255,255,255,0.22);
+  border-radius: 999px;
+  background: rgba(255,255,255,0.08);
+  color: #fff;
+  padding: 10px 14px;
+  font-size: 14px;
+  font-family: -apple-system, sans-serif;
+  backdrop-filter: blur(10px);
+}
 </style>
 </head>
 <body>
@@ -105,6 +119,7 @@ canvas {
 </div>
 <canvas id="gameCanvas"></canvas>
 <div id="lockHint">💡 建议开启 iPad「引导式访问」防止猫咪退出</div>
+<button id="soundToggle" type="button">🔊 音效开</button>
 <script>
 // 防误触
 document.addEventListener('touchmove', e => e.preventDefault(), { passive: false });
@@ -126,8 +141,13 @@ let W, H, dpr;
 let creatures = [];
 let bgStars = [];
 let running = false;
+let soundEnabled = true;
+let audioContext = null;
+let masterGain = null;
+let noiseBuffer = null;
 
 const phaseTypes = ['tadpole', 'yarn', 'soot', 'laser'];
+const soundToggle = document.getElementById('soundToggle');
 
 // ===== 核心修复：用定时器驱动生成，而不是依赖死亡检测 =====
 let spawnTimer = 0;
@@ -200,6 +220,142 @@ function drawBg() {
     ctx.fillStyle = `rgba(255,255,25,${alpha})`;
     ctx.fill();
   });
+}
+
+function updateSoundToggle() {
+  soundToggle.textContent = soundEnabled ? '🔊 音效开' : '🔇 音效关';
+}
+
+function ensureAudio() {
+  if (!audioContext) {
+    const AudioCtx = window.AudioContext || window.webkitAudioContext;
+    if (!AudioCtx) return null;
+    audioContext = new AudioCtx();
+    masterGain = audioContext.createGain();
+    masterGain.gain.value = soundEnabled ? 0.18 : 0.0001;
+    masterGain.connect(audioContext.destination);
+  }
+  if (audioContext.state === 'suspended') {
+    audioContext.resume().catch(() => {});
+  }
+  return audioContext;
+}
+
+function setSoundEnabled(enabled) {
+  soundEnabled = enabled;
+  updateSoundToggle();
+  if (masterGain && audioContext) {
+    const now = audioContext.currentTime;
+    masterGain.gain.cancelScheduledValues(now);
+    masterGain.gain.setTargetAtTime(enabled ? 0.18 : 0.0001, now, 0.02);
+  }
+}
+
+function connectAudioNode(node, pan = 0) {
+  if (!masterGain) return;
+  if (audioContext.createStereoPanner) {
+    const panner = audioContext.createStereoPanner();
+    panner.pan.value = Math.max(-1, Math.min(1, pan));
+    node.connect(panner);
+    panner.connect(masterGain);
+    return;
+  }
+  node.connect(masterGain);
+}
+
+function playTone({
+  type = 'sine',
+  freq = 440,
+  endFreq = freq,
+  duration = 0.16,
+  volume = 0.12,
+  attack = 0.005,
+  pan = 0
+}) {
+  const ctx = ensureAudio();
+  if (!ctx || !soundEnabled || !masterGain) return;
+
+  const osc = ctx.createOscillator();
+  const gain = ctx.createGain();
+  const start = ctx.currentTime;
+  const safeEndFreq = Math.max(endFreq, 30);
+
+  osc.type = type;
+  osc.frequency.setValueAtTime(Math.max(freq, 30), start);
+  osc.frequency.exponentialRampToValueAtTime(safeEndFreq, start + duration);
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + attack);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  osc.connect(gain);
+  connectAudioNode(gain, pan);
+  osc.start(start);
+  osc.stop(start + duration + 0.02);
+}
+
+function getNoiseBuffer(ctx) {
+  if (noiseBuffer && noiseBuffer.sampleRate === ctx.sampleRate) return noiseBuffer;
+  noiseBuffer = ctx.createBuffer(1, ctx.sampleRate * 0.2, ctx.sampleRate);
+  const data = noiseBuffer.getChannelData(0);
+  for (let i = 0; i < data.length; i++) {
+    data[i] = (Math.random() * 2 - 1) * (1 - i / data.length);
+  }
+  return noiseBuffer;
+}
+
+function playNoiseBurst({ duration = 0.08, volume = 0.06, pan = 0, highpass = 600 } = {}) {
+  const ctx = ensureAudio();
+  if (!ctx || !soundEnabled || !masterGain) return;
+
+  const source = ctx.createBufferSource();
+  const filter = ctx.createBiquadFilter();
+  const gain = ctx.createGain();
+  const start = ctx.currentTime;
+
+  source.buffer = getNoiseBuffer(ctx);
+  filter.type = 'highpass';
+  filter.frequency.setValueAtTime(highpass, start);
+
+  gain.gain.setValueAtTime(0.0001, start);
+  gain.gain.linearRampToValueAtTime(volume, start + 0.01);
+  gain.gain.exponentialRampToValueAtTime(0.0001, start + duration);
+
+  source.connect(filter);
+  filter.connect(gain);
+  connectAudioNode(gain, pan);
+  source.start(start);
+  source.stop(start + duration + 0.02);
+}
+
+function playStartSound() {
+  playTone({ type: 'triangle', freq: 392, endFreq: 520, duration: 0.14, volume: 0.09, pan: -0.2 });
+  setTimeout(() => playTone({ type: 'triangle', freq: 520, endFreq: 659, duration: 0.16, volume: 0.1, pan: 0.2 }), 90);
+  setTimeout(() => playTone({ type: 'sine', freq: 659, endFreq: 784, duration: 0.2, volume: 0.08, pan: 0 }), 180);
+}
+
+function playSpawnSound(type, x) {
+  const pan = W ? (x / W) * 2 - 1 : 0;
+
+  if (type === 'tadpole') {
+    playTone({ type: 'sine', freq: 320, endFreq: 420, duration: 0.12, volume: 0.06, pan });
+    setTimeout(() => playTone({ type: 'sine', freq: 480, endFreq: 680, duration: 0.08, volume: 0.045, pan }), 35);
+    return;
+  }
+
+  if (type === 'yarn') {
+    playTone({ type: 'triangle', freq: 440, endFreq: 220, duration: 0.18, volume: 0.08, pan });
+    setTimeout(() => playTone({ type: 'triangle', freq: 660, endFreq: 330, duration: 0.12, volume: 0.04, pan }), 24);
+    return;
+  }
+
+  if (type === 'soot') {
+    playNoiseBurst({ duration: 0.07, volume: 0.035, pan, highpass: 1400 });
+    playTone({ type: 'square', freq: 240, endFreq: 180, duration: 0.09, volume: 0.03, pan });
+    return;
+  }
+
+  playTone({ type: 'sawtooth', freq: 950, endFreq: 180, duration: 0.16, volume: 0.05, pan });
 }
 
 // ===== 生物基类 =====
@@ -489,7 +645,9 @@ function spawnOne() {
   const randomType = availableTypes[Math.floor(Math.random() * availableTypes.length)];
   lastSpawnedType = randomType;
   const TypeClass = creatureClasses[randomType];
-  creatures.push(new TypeClass(trav));
+  const creature = new TypeClass(trav);
+  creatures.push(creature);
+  playSpawnSound(randomType, creature.x);
 }
 
 // ===== 主循环（完全重写生成逻辑）=====
@@ -519,17 +677,25 @@ function gameLoop() {
 
 // 开始游戏
 function startGame() {
+  if (running) return;
+  ensureAudio();
   tryFullscreen();
   document.getElementById('startScreen').classList.add('hidden');
   creatures = [];
   spawnTimer = 0; // 立刻生成第一个
   running = true;
+  playStartSound();
   gameLoop();
 }
 
 const btn = document.getElementById('startBtn');
 btn.addEventListener('click', startGame);
 btn.addEventListener('touchend', e => { e.preventDefault(); startGame(); });
+soundToggle.addEventListener('click', () => {
+  setSoundEnabled(!soundEnabled);
+  ensureAudio();
+});
+updateSoundToggle();
 </script>
 </body>
 </html>
