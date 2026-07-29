@@ -8,6 +8,17 @@
 <meta name="mobile-web-app-capable" content="yes">
 <title>🐱 喵喵乐园</title>
 <style>
+:root {
+  --bg-deep: #07111f;
+  --bg-mid: #101f33;
+  --glow-cyan: #7ef6ff;
+  --glow-gold: #ffe079;
+  --glow-pink: #ff89c4;
+  --panel-border: rgba(255,255,255,0.14);
+  --panel-bg: rgba(7,17,31,0.54);
+  --text-soft: rgba(240,247,255,0.72);
+  --text-faint: rgba(240,247,255,0.48);
+}
 * {
   margin: 0;
   padding: 0;
@@ -21,11 +32,16 @@ html, body {
   width: 100%;
   height: 100%;
   overflow: hidden;
-  background: #0a0a14;
+  background:
+    radial-gradient(circle at 20% 20%, rgba(126,246,255,0.16), transparent 26%),
+    radial-gradient(circle at 80% 10%, rgba(255,224,121,0.12), transparent 28%),
+    linear-gradient(180deg, var(--bg-mid), var(--bg-deep));
   touch-action: none;
   position: fixed;
   top: 0;
   left: 0;
+  font-family: "Avenir Next", "Trebuchet MS", "Segoe UI", sans-serif;
+  color: #fff;
 }
 canvas {
   display: block;
@@ -39,86 +55,268 @@ canvas {
   position: fixed;
   top: 0; left: 0;
   width: 100%; height: 100%;
-  background: radial-gradient(ellipse at center, #2a1a3e 0%, #0d0d1a 100%);
+  padding: max(env(safe-area-inset-top), 28px) 20px max(env(safe-area-inset-bottom), 28px);
+  background:
+    radial-gradient(circle at 18% 28%, rgba(126,246,255,0.16), transparent 24%),
+    radial-gradient(circle at 80% 18%, rgba(255,137,196,0.14), transparent 22%),
+    radial-gradient(circle at 50% 80%, rgba(255,224,121,0.12), transparent 26%),
+    linear-gradient(180deg, #13243c 0%, #07111f 100%);
   display: flex;
-  flex-direction: column;
   align-items: center;
   justify-content: center;
   z-index: 100;
   transition: opacity 0.8s ease;
+  overflow: hidden;
 }
 #startScreen.hidden {
   opacity: 0;
   pointer-events: none;
 }
+.start-backdrop {
+  position: absolute;
+  inset: auto;
+  border-radius: 50%;
+  filter: blur(24px);
+  opacity: 0.85;
+  animation: drift 10s ease-in-out infinite;
+}
+.backdrop-a {
+  width: 34vw;
+  height: 34vw;
+  min-width: 180px;
+  min-height: 180px;
+  left: 10%;
+  top: 12%;
+  background: radial-gradient(circle, rgba(126,246,255,0.32), rgba(126,246,255,0.02));
+}
+.backdrop-b {
+  width: 40vw;
+  height: 40vw;
+  min-width: 220px;
+  min-height: 220px;
+  right: -8%;
+  bottom: -4%;
+  background: radial-gradient(circle, rgba(255,224,121,0.26), rgba(255,137,196,0.02));
+  animation-duration: 13s;
+}
+.start-panel {
+  position: relative;
+  width: min(92vw, 760px);
+  padding: 28px 24px 24px;
+  border: 1px solid var(--panel-border);
+  border-radius: 28px;
+  background: linear-gradient(180deg, rgba(255,255,255,0.12), rgba(255,255,255,0.03)), var(--panel-bg);
+  box-shadow: 0 22px 70px rgba(0,0,0,0.32);
+  backdrop-filter: blur(18px);
+}
+.start-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 14px;
+  border-radius: 999px;
+  font-size: 12px;
+  letter-spacing: 1.8px;
+  text-transform: uppercase;
+  color: #dffcff;
+  background: rgba(126,246,255,0.12);
+  border: 1px solid rgba(126,246,255,0.18);
+  margin-bottom: 18px;
+}
 .start-title {
-  font-size: min(12vw, 80px);
+  font-size: min(12vw, 82px);
   color: #fff;
-  text-shadow: 0 0 30px rgba(255,180,230,0.6), 0 0 60px rgba(180,130,255,0.3);
-  margin-bottom: 10px;
-  font-family: -apple-system, sans-serif;
-  letter-spacing: 8px;
+  text-shadow: 0 0 36px rgba(126,246,255,0.24), 0 0 70px rgba(255,137,196,0.18);
+  margin-bottom: 12px;
+  font-family: "Avenir Next Condensed", "Trebuchet MS", sans-serif;
+  font-weight: 700;
+  letter-spacing: 6px;
+  line-height: 0.95;
 }
 .start-subtitle {
-  font-size: min(5vw, 28px);
-  color: rgba(255,255,255,0.5);
-  margin-bottom: 60px;
-  font-family: -apple-system, sans-serif;
+  font-size: min(5vw, 24px);
+  color: var(--text-soft);
+  margin-bottom: 24px;
+  line-height: 1.45;
+  max-width: 32em;
+}
+.feature-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+  margin-bottom: 22px;
+}
+.feature-card {
+  padding: 16px 14px;
+  border-radius: 18px;
+  background: rgba(255,255,255,0.06);
+  border: 1px solid rgba(255,255,255,0.08);
+}
+.feature-kicker {
+  font-size: 11px;
+  letter-spacing: 1.4px;
+  text-transform: uppercase;
+  color: rgba(255,224,121,0.82);
+  margin-bottom: 8px;
+}
+.feature-copy {
+  font-size: 14px;
+  line-height: 1.45;
+  color: var(--text-soft);
+}
+.tip-line {
+  margin-bottom: 20px;
+  font-size: 14px;
+  line-height: 1.5;
+  color: var(--text-faint);
 }
 .start-btn {
-  width: min(70vw, 320px);
-  padding: 20px;
-  border: 2px solid rgba(255,255,255,0.3);
+  width: min(72vw, 340px);
+  padding: 18px 20px;
+  border: 1px solid rgba(255,255,255,0.22);
   border-radius: 50px;
-  background: rgba(255,255,255,0.08);
+  background: linear-gradient(90deg, rgba(126,246,255,0.18), rgba(255,224,121,0.18));
   color: #fff;
-  font-size: min(6vw, 28px);
-  font-family: -apple-system, sans-serif;
-  letter-spacing: 4px;
+  font-size: min(6vw, 25px);
+  font-family: "Avenir Next Condensed", "Trebuchet MS", sans-serif;
+  letter-spacing: 3px;
   cursor: pointer;
-  backdrop-filter: blur(10px);
-  animation: btnPulse 2s ease-in-out infinite;
+  backdrop-filter: blur(14px);
+  box-shadow: 0 12px 30px rgba(0,0,0,0.24);
+  animation: btnPulse 2.2s ease-in-out infinite;
 }
 @keyframes btnPulse {
-  0%, 100% { box-shadow: 0 0 20px rgba(255,180,230,0.2); }
-  50% { box-shadow: 0 0 40px rgba(255,180,230,0.5); }
+  0%, 100% { transform: translateY(0); box-shadow: 0 10px 26px rgba(126,246,255,0.18); }
+  50% { transform: translateY(-2px); box-shadow: 0 14px 36px rgba(255,224,121,0.26); }
+}
+@keyframes drift {
+  0%, 100% { transform: translate3d(0, 0, 0) scale(1); }
+  50% { transform: translate3d(20px, -14px, 0) scale(1.06); }
 }
 #lockHint {
   position: fixed;
   bottom: max(env(safe-area-inset-bottom), 12px);
   left: 50%;
   transform: translateX(-50%);
-  color: rgba(255,255,255,0.12);
+  color: rgba(255,255,255,0.18);
   font-size: 11px;
-  font-family: -apple-system, sans-serif;
   z-index: 50;
   pointer-events: none;
   white-space: nowrap;
+}
+#statusHud {
+  position: fixed;
+  top: max(env(safe-area-inset-top), 14px);
+  left: 14px;
+  z-index: 90;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  padding: 10px 14px;
+  border-radius: 999px;
+  background: rgba(7,17,31,0.42);
+  border: 1px solid rgba(255,255,255,0.1);
+  backdrop-filter: blur(12px);
+  color: #f5fbff;
+  opacity: 0;
+  transform: translateY(-6px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  pointer-events: none;
+}
+#statusHud.active {
+  opacity: 1;
+  transform: translateY(0);
+}
+.hud-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background: var(--glow-gold);
+  box-shadow: 0 0 18px rgba(255,224,121,0.7);
+  animation: hudBlink 1.6s ease-in-out infinite;
+}
+.hud-title {
+  font-size: 13px;
+  font-weight: 600;
+  letter-spacing: 0.6px;
+}
+.hud-copy {
+  font-size: 11px;
+  color: var(--text-faint);
+}
+@keyframes hudBlink {
+  0%, 100% { opacity: 0.7; transform: scale(1); }
+  50% { opacity: 1; transform: scale(1.15); }
 }
 #soundToggle {
   position: fixed;
   top: max(env(safe-area-inset-top), 14px);
   right: 14px;
   z-index: 120;
-  border: 1px solid rgba(255,255,255,0.22);
+  border: 1px solid rgba(255,255,255,0.16);
   border-radius: 999px;
-  background: rgba(255,255,255,0.08);
+  background: rgba(7,17,31,0.48);
   color: #fff;
   padding: 10px 14px;
   font-size: 14px;
-  font-family: -apple-system, sans-serif;
-  backdrop-filter: blur(10px);
+  backdrop-filter: blur(12px);
+}
+@media (max-width: 720px) {
+  .start-panel {
+    padding: 22px 18px 20px;
+    border-radius: 24px;
+  }
+  .feature-grid {
+    grid-template-columns: 1fr;
+  }
+  .start-title {
+    letter-spacing: 4px;
+  }
+  .start-subtitle {
+    font-size: 18px;
+  }
+  #statusHud {
+    max-width: calc(100vw - 110px);
+    border-radius: 18px;
+  }
 }
 </style>
 </head>
 <body>
 <div id="startScreen">
-  <div class="start-title">喵喵乐园</div>
-  <div class="start-subtitle">给猫主子的小游戏</div>
-  <button class="start-btn" id="startBtn">开始播放 🐾</button>
+  <div class="start-backdrop backdrop-a"></div>
+  <div class="start-backdrop backdrop-b"></div>
+  <div class="start-panel">
+    <div class="start-badge">Cat Mode · 高频逗猫</div>
+    <div class="start-title">喵喵乐园</div>
+    <div class="start-subtitle">让光点、毛线和啾啾声把猫主子的注意力拉回屏幕中央，自动轮播不需要手动操作。</div>
+    <div class="feature-grid">
+      <div class="feature-card">
+        <div class="feature-kicker">High Pitch</div>
+        <div class="feature-copy">更偏短促高频的啾声和沙沙声，比普通提示音更容易引起猫咪注意。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-kicker">Visual Focus</div>
+        <div class="feature-copy">新目标出现时会带聚焦光圈和更强拖尾，方便猫咪快速锁定屏幕热点。</div>
+      </div>
+      <div class="feature-card">
+        <div class="feature-kicker">Hands Free</div>
+        <div class="feature-copy">自动切换不同诱饵，适合平板放在地上连续播放。</div>
+      </div>
+    </div>
+    <div class="tip-line">建议把音量调到 40% - 70%，平放 iPad 或平板，效果通常更稳。</div>
+    <button class="start-btn" id="startBtn">开始逗猫 🐾</button>
+  </div>
 </div>
 <canvas id="gameCanvas"></canvas>
 <div id="lockHint">💡 建议开启 iPad「引导式访问」防止猫咪退出</div>
+<div id="statusHud">
+  <div class="hud-dot"></div>
+  <div>
+    <div class="hud-title">猫咪模式运行中</div>
+    <div class="hud-copy">高频啾声 · 随机诱导 · 自动轮播</div>
+  </div>
+</div>
 <button id="soundToggle" type="button">🔊 音效开</button>
 <script>
 // 防误触
@@ -140,17 +338,22 @@ const ctx = canvas.getContext('2d');
 let W, H, dpr;
 let creatures = [];
 let bgStars = [];
+let focusBursts = [];
 let running = false;
 let soundEnabled = true;
 let audioContext = null;
 let masterGain = null;
 let noiseBuffer = null;
+let bgPulse = 0;
 
 const phaseTypes = ['tadpole', 'yarn', 'soot', 'laser'];
 const soundToggle = document.getElementById('soundToggle');
+const statusHud = document.getElementById('statusHud');
+const MASTER_VOLUME = 0.24;
 
 // ===== 核心修复：用定时器驱动生成，而不是依赖死亡检测 =====
 let spawnTimer = 0;
+let accentTimer = 0;
 const SPAWN_INTERVAL_MIN = 90;   // 最少间隔帧数 (~1.5秒)
 const SPAWN_INTERVAL_MAX = 200;  // 最大间隔帧数 (~3.3秒)
 const MAX_CREATURES = 3;         // 场上最多同时存在的生物数
@@ -158,6 +361,14 @@ const MAX_LIFETIME = 600;        // 最大生命帧数 (~10秒)，超时强制�
 
 function getNextSpawnDelay() {
   return SPAWN_INTERVAL_MIN + Math.floor(Math.random() * (SPAWN_INTERVAL_MAX - SPAWN_INTERVAL_MIN));
+}
+
+function getNextAccentDelay() {
+  return 55 + Math.floor(Math.random() * 90);
+}
+
+function randomIn(min, max) {
+  return min + Math.random() * (max - min);
 }
 
 function resize() {
@@ -196,28 +407,45 @@ function makeTraversal() {
 
 function initStars() {
   bgStars = [];
-  for (let i = 0; i < 50; i++) {
+  for (let i = 0; i < 60; i++) {
     bgStars.push({
       x: Math.random() * W, y: Math.random() * H,
       r: Math.random() * 1.5 + 0.5,
       phase: Math.random() * Math.PI * 2,
-      speed: Math.random() * 0.02 + 0.008
+      speed: Math.random() * 0.02 + 0.008,
+      dx: (Math.random() - 0.5) * 0.12,
+      dy: (Math.random() - 0.5) * 0.12
     });
   }
 }
 
 function drawBg() {
-  const grad = ctx.createRadialGradient(W/2, H/2, 0, W/2, H/2, Math.max(W, H) * 0.7);
-  grad.addColorStop(0, '#1e1533');
-  grad.addColorStop(1, '#0a0a14');
+  bgPulse += 0.01;
+  const focusX = W * (0.5 + Math.sin(bgPulse * 0.8) * 0.18);
+  const focusY = H * (0.42 + Math.cos(bgPulse * 0.5) * 0.16);
+  const grad = ctx.createRadialGradient(focusX, focusY, 0, W/2, H/2, Math.max(W, H) * 0.78);
+  grad.addColorStop(0, '#18304d');
+  grad.addColorStop(0.45, '#101f33');
+  grad.addColorStop(1, '#07111f');
   ctx.fillStyle = grad;
+  ctx.fillRect(0, 0, W, H);
+  const warmGlow = ctx.createRadialGradient(W * 0.78, H * 0.2, 0, W * 0.78, H * 0.2, Math.min(W, H) * 0.35);
+  warmGlow.addColorStop(0, 'rgba(255,224,121,0.12)');
+  warmGlow.addColorStop(1, 'rgba(255,224,121,0)');
+  ctx.fillStyle = warmGlow;
   ctx.fillRect(0, 0, W, H);
   bgStars.forEach(s => {
     s.phase += s.speed;
+     s.x += s.dx;
+     s.y += s.dy;
+    if (s.x < -10) s.x = W + 10;
+    if (s.x > W + 10) s.x = -10;
+    if (s.y < -10) s.y = H + 10;
+    if (s.y > H + 10) s.y = -10;
     const alpha = 0.15 + 0.25 * Math.sin(s.phase);
     ctx.beginPath();
     ctx.arc(s.x, s.y, s.r, 0, Math.PI * 2);
-    ctx.fillStyle = `rgba(255,255,25,${alpha})`;
+    ctx.fillStyle = `rgba(255,255,190,${alpha})`;
     ctx.fill();
   });
 }
@@ -226,13 +454,17 @@ function updateSoundToggle() {
   soundToggle.textContent = soundEnabled ? '🔊 音效开' : '🔇 音效关';
 }
 
+function setHudActive(active) {
+  statusHud.classList.toggle('active', active);
+}
+
 function ensureAudio() {
   if (!audioContext) {
     const AudioCtx = window.AudioContext || window.webkitAudioContext;
     if (!AudioCtx) return null;
     audioContext = new AudioCtx();
     masterGain = audioContext.createGain();
-    masterGain.gain.value = soundEnabled ? 0.18 : 0.0001;
+    masterGain.gain.value = soundEnabled ? MASTER_VOLUME : 0.0001;
     masterGain.connect(audioContext.destination);
   }
   if (audioContext.state === 'suspended') {
@@ -247,7 +479,7 @@ function setSoundEnabled(enabled) {
   if (masterGain && audioContext) {
     const now = audioContext.currentTime;
     masterGain.gain.cancelScheduledValues(now);
-    masterGain.gain.setTargetAtTime(enabled ? 0.18 : 0.0001, now, 0.02);
+    masterGain.gain.setTargetAtTime(enabled ? MASTER_VOLUME : 0.0001, now, 0.02);
   }
 }
 
@@ -270,14 +502,15 @@ function playTone({
   duration = 0.16,
   volume = 0.12,
   attack = 0.005,
-  pan = 0
+  pan = 0,
+  when = 0
 }) {
   const ctx = ensureAudio();
   if (!ctx || !soundEnabled || !masterGain) return;
 
   const osc = ctx.createOscillator();
   const gain = ctx.createGain();
-  const start = ctx.currentTime;
+  const start = ctx.currentTime + when;
   const safeEndFreq = Math.max(endFreq, 30);
 
   osc.type = type;
@@ -304,16 +537,17 @@ function getNoiseBuffer(ctx) {
   return noiseBuffer;
 }
 
-function playNoiseBurst({ duration = 0.08, volume = 0.06, pan = 0, highpass = 600 } = {}) {
+function playNoiseBurst({ duration = 0.08, volume = 0.06, pan = 0, highpass = 600, when = 0 } = {}) {
   const ctx = ensureAudio();
   if (!ctx || !soundEnabled || !masterGain) return;
 
   const source = ctx.createBufferSource();
   const filter = ctx.createBiquadFilter();
   const gain = ctx.createGain();
-  const start = ctx.currentTime;
+  const start = ctx.currentTime + when;
 
   source.buffer = getNoiseBuffer(ctx);
+  source.playbackRate.value = randomIn(0.9, 1.15);
   filter.type = 'highpass';
   filter.frequency.setValueAtTime(highpass, start);
 
@@ -328,34 +562,128 @@ function playNoiseBurst({ duration = 0.08, volume = 0.06, pan = 0, highpass = 60
   source.stop(start + duration + 0.02);
 }
 
+function playChirpCluster({ pan = 0, minFreq = 1400, maxFreq = 2600, count = 3, step = 0.05, volume = 0.045 } = {}) {
+  for (let i = 0; i < count; i++) {
+    const startFreq = randomIn(minFreq, maxFreq);
+    const endFreq = startFreq * randomIn(0.52, 1.22);
+    playTone({
+      type: i % 2 === 0 ? 'triangle' : 'sine',
+      freq: startFreq,
+      endFreq,
+      duration: randomIn(0.04, 0.085),
+      volume: volume * (1 - i * 0.14),
+      attack: 0.003,
+      pan: pan + randomIn(-0.08, 0.08),
+      when: i * step
+    });
+  }
+}
+
+function playCrinkle({ pan = 0, bursts = 3, step = 0.04, volume = 0.03 } = {}) {
+  for (let i = 0; i < bursts; i++) {
+    playNoiseBurst({
+      duration: randomIn(0.035, 0.065),
+      volume: volume * (1 - i * 0.1),
+      pan: pan + randomIn(-0.06, 0.06),
+      highpass: randomIn(1700, 3200),
+      when: i * step
+    });
+  }
+}
+
 function playStartSound() {
-  playTone({ type: 'triangle', freq: 392, endFreq: 520, duration: 0.14, volume: 0.09, pan: -0.2 });
-  setTimeout(() => playTone({ type: 'triangle', freq: 520, endFreq: 659, duration: 0.16, volume: 0.1, pan: 0.2 }), 90);
-  setTimeout(() => playTone({ type: 'sine', freq: 659, endFreq: 784, duration: 0.2, volume: 0.08, pan: 0 }), 180);
+  playChirpCluster({ pan: -0.1, minFreq: 1200, maxFreq: 2200, count: 2, step: 0.08, volume: 0.05 });
+  playTone({ type: 'sine', freq: 780, endFreq: 1020, duration: 0.22, volume: 0.04, pan: 0.18, when: 0.18 });
+  playCrinkle({ pan: 0.16, bursts: 2, step: 0.06, volume: 0.016 });
 }
 
 function playSpawnSound(type, x) {
   const pan = W ? (x / W) * 2 - 1 : 0;
 
   if (type === 'tadpole') {
-    playTone({ type: 'sine', freq: 320, endFreq: 420, duration: 0.12, volume: 0.06, pan });
-    setTimeout(() => playTone({ type: 'sine', freq: 480, endFreq: 680, duration: 0.08, volume: 0.045, pan }), 35);
+    playChirpCluster({ pan, minFreq: 1600, maxFreq: 2800, count: 3, step: 0.045, volume: 0.034 });
     return;
   }
 
   if (type === 'yarn') {
-    playTone({ type: 'triangle', freq: 440, endFreq: 220, duration: 0.18, volume: 0.08, pan });
-    setTimeout(() => playTone({ type: 'triangle', freq: 660, endFreq: 330, duration: 0.12, volume: 0.04, pan }), 24);
+    playCrinkle({ pan, bursts: 4, step: 0.028, volume: 0.022 });
+    playTone({ type: 'triangle', freq: 920, endFreq: 520, duration: 0.11, volume: 0.018, pan, when: 0.025 });
     return;
   }
 
   if (type === 'soot') {
-    playNoiseBurst({ duration: 0.07, volume: 0.035, pan, highpass: 1400 });
-    playTone({ type: 'square', freq: 240, endFreq: 180, duration: 0.09, volume: 0.03, pan });
+    playNoiseBurst({ duration: 0.06, volume: 0.026, pan, highpass: 2100 });
+    playChirpCluster({ pan, minFreq: 1250, maxFreq: 2000, count: 2, step: 0.055, volume: 0.018 });
     return;
   }
 
-  playTone({ type: 'sawtooth', freq: 950, endFreq: 180, duration: 0.16, volume: 0.05, pan });
+  playTone({ type: 'sawtooth', freq: 3000, endFreq: 780, duration: 0.085, volume: 0.022, pan });
+  playTone({ type: 'triangle', freq: 2400, endFreq: 1200, duration: 0.075, volume: 0.018, pan: pan + 0.04, when: 0.06 });
+}
+
+function playAttentionAccent(creature) {
+  const pan = W ? (creature.x / W) * 2 - 1 : 0;
+  if (creature.type === 'laser') {
+    playTone({ type: 'sawtooth', freq: 3600, endFreq: 950, duration: 0.05, volume: 0.018, pan });
+    playTone({ type: 'sine', freq: 2200, endFreq: 1400, duration: 0.045, volume: 0.013, pan: pan - 0.05, when: 0.05 });
+    return;
+  }
+  if (creature.type === 'yarn') {
+    playCrinkle({ pan, bursts: 3, step: 0.026, volume: 0.02 });
+    return;
+  }
+  if (creature.type === 'soot') {
+    playNoiseBurst({ duration: 0.045, volume: 0.018, pan, highpass: 2500 });
+    return;
+  }
+  playChirpCluster({ pan, minFreq: 1800, maxFreq: 3200, count: 2, step: 0.05, volume: 0.022 });
+}
+
+function getTypeHue(type) {
+  if (type === 'tadpole') return 190;
+  if (type === 'yarn') return 42;
+  if (type === 'soot') return 320;
+  return 4;
+}
+
+function addFocusBurst(x, y, type, scale = 1) {
+  focusBursts.push({
+    x, y,
+    hue: getTypeHue(type),
+    scale,
+    age: 0,
+    life: 34
+  });
+}
+
+function updateFocusBursts() {
+  focusBursts = focusBursts.filter(b => b.age < b.life);
+  focusBursts.forEach(b => {
+    b.age++;
+    const t = b.age / b.life;
+    const radius = (16 + 74 * t) * b.scale;
+    const alpha = (1 - t) * 0.48;
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, radius, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${b.hue},95%,70%,${alpha})`;
+    ctx.lineWidth = Math.max(1.2, (3 - t * 2.1) * b.scale);
+    ctx.stroke();
+
+    ctx.beginPath();
+    ctx.arc(b.x, b.y, radius * 0.52, 0, Math.PI * 2);
+    ctx.strokeStyle = `hsla(${b.hue},100%,82%,${alpha * 0.72})`;
+    ctx.lineWidth = 1.4;
+    ctx.stroke();
+  });
+}
+
+function pickAccentCreature() {
+  if (!creatures.length) return null;
+  const weighted = creatures.flatMap(c => {
+    const weight = c.type === 'laser' ? 3 : c.type === 'yarn' ? 2 : 1;
+    return Array.from({ length: weight }, () => c);
+  });
+  return weighted[Math.floor(Math.random() * weighted.length)];
 }
 
 // ===== 生物基类 =====
@@ -648,6 +976,7 @@ function spawnOne() {
   const creature = new TypeClass(trav);
   creatures.push(creature);
   playSpawnSound(randomType, creature.x);
+  addFocusBurst(creature.x, creature.y, randomType, randomType === 'laser' ? 1.2 : 1);
 }
 
 // ===== 主循环（完全重写生成逻辑）=====
@@ -671,7 +1000,18 @@ function gameLoop() {
     spawnTimer = getNextSpawnDelay();
   }
 
+  accentTimer--;
+  if (accentTimer <= 0 && creatures.length) {
+    const accentCreature = pickAccentCreature();
+    if (accentCreature) {
+      playAttentionAccent(accentCreature);
+      addFocusBurst(accentCreature.x, accentCreature.y, accentCreature.type, accentCreature.type === 'laser' ? 1.1 : 0.92);
+    }
+    accentTimer = getNextAccentDelay();
+  }
+
   creatures.forEach(c => { c.update(); c.draw(); });
+  updateFocusBursts();
   requestAnimationFrame(gameLoop);
 }
 
@@ -682,8 +1022,11 @@ function startGame() {
   tryFullscreen();
   document.getElementById('startScreen').classList.add('hidden');
   creatures = [];
+  focusBursts = [];
   spawnTimer = 0; // 立刻生成第一个
+  accentTimer = 30;
   running = true;
+  setHudActive(true);
   playStartSound();
   gameLoop();
 }
